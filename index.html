@@ -168,7 +168,8 @@
     touch-action:none;
   }
   .viewport.dragging{ cursor:grabbing; }
-  .world{ position:absolute; top:0; left:0; will-change:transform; }
+  .world{ position:absolute; top:0; left:0; will-change:transform; z-index:1; }
+  body.focus .world{ z-index:1001; }
 
   /* a print in the developer tray */
   .photo{
