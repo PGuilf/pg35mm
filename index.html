@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Darkroom</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3C!-- canister body --%3E%3Crect x='7' y='8' width='18' height='20' rx='3' fill='%231a1a1a'/%3E%3C!-- yellow stripe --%3E%3Crect x='7' y='13' width='18' height='7' fill='%23f5c400'/%3E%3C!-- PORTRA text area (dark bar on yellow) --%3E%3Crect x='7' y='15.5' width='18' height='2.5' fill='%23c8a000'/%3E%3C!-- cap top --%3E%3Crect x='9' y='5' width='14' height='4' rx='1.5' fill='%23333'/%3E%3C!-- cap lip --%3E%3Crect x='8' y='8' width='16' height='2' rx='1' fill='%23444'/%3E%3C!-- film sprocket holes left --%3E%3Crect x='8' y='9.5' width='2' height='1.5' rx='0.4' fill='%23666'/%3E%3Crect x='8' y='12.5' width='2' height='1.5' rx='0.4' fill='%23666'/%3E%3C!-- film sprocket holes right --%3E%3Crect x='22' y='9.5' width='2' height='1.5' rx='0.4' fill='%23666'/%3E%3Crect x='22' y='12.5' width='2' height='1.5' rx='0.4' fill='%23666'/%3E%3C!-- bottom cap --%3E%3Crect x='8' y='27' width='16' height='2' rx='1' fill='%23444'/%3E%3C/svg%3E">
+<style>
+  :root{ --chem:55,6,2; --shimmer:255,130,45; --safelight:238,52,12; }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:#c8b89a;
+    overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+
+  /* ambient darkroom light — safelight floods from overhead */
+  .ambient{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(ellipse 120% 70% at 50% -8%, rgba(var(--safelight),0.28), transparent 62%),
+      radial-gradient(ellipse 80% 60% at 18% 20%, rgba(var(--safelight),0.08), transparent 55%),
+      radial-gradient(ellipse 60% 50% at 85% 25%, rgba(var(--safelight),0.06), transparent 50%),
+      radial-gradient(120% 120% at 50% 130%, rgba(var(--chem),0.45), transparent 60%),
+      #0e0d0c;
+  }
+  .caustics{
+    position:fixed; inset:-25%; z-index:10; pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'>\
+<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.02' numOctaves='2' seed='7'/>\
+<feColorMatrix type='matrix' values='0 0 0 0 0.82  0 0 0 0 0.16  0 0 0 0 0.08  0 0 0 0.55 0'/></filter>\
+<rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    background-size:130% 130%;
+    opacity:0.18; mix-blend-mode:screen;
+    animation:caustic 70s ease-in-out infinite;
+  }
+  .caustics.b{
+    background-size:90% 90%;
+    opacity:0.12; z-index:11;
+    animation:causticB 95s ease-in-out infinite;
+  }
+  .caustics.c{
+    inset:-60%;
+    background-size:55% 55%;
+    opacity:0.07; z-index:12;
+    animation:causticC 150s linear infinite;
+  }
+  @keyframes causticC{
+    from{ transform:rotate(0deg) scale(1.1); }
+    to{ transform:rotate(360deg) scale(1.1); }
+  }
+  @keyframes caustic{
+    0%,100%{ transform:translate3d(0,0,0) scale(1); }
+    50%{ transform:translate3d(-2.5%,2%,0) scale(1.05); }
+  }
+  @keyframes causticB{
+    0%,100%{ transform:translate3d(0,0,0) scale(1.04); }
+    50%{ transform:translate3d(2%,-2.5%,0) scale(1); }
+  }
+  /* a slow sheen washing across the water surface */
+  .sheen{
+    position:fixed; inset:0; z-index:12; pointer-events:none;
+    background:linear-gradient(118deg,
+      transparent 30%, rgba(var(--shimmer),0.05) 47%,
+      rgba(var(--shimmer),0.022) 53%, transparent 70%);
+    background-size:280% 280%;
+    mix-blend-mode:screen;
+    animation:sheen 34s ease-in-out infinite alternate;
+  }
+  /* turbid depth between the surface and the prints */
+  .depthhaze{
+    position:fixed; inset:0; z-index:9; pointer-events:none;
+    background:
+      radial-gradient(115% 95% at 50% 42%, transparent 30%, rgba(22,2,0,0.50) 100%),
+      linear-gradient(180deg, rgba(200,30,8,0.08) 0%, rgba(50,5,1,0.04) 50%, rgba(22,2,0,0.14) 100%);
+  }
+
+  /* safelight bulb reflections — centre bulb + edge bulb */
+  .safelight-refl{
+    position:fixed; z-index:14; pointer-events:none;
+    transition:opacity 0.6s ease;
+  }
+  /* centre bulb — warmer, a bit brighter */
+  .safelight-refl.centre{
+    top:50%; left:50%;
+    width:60%; height:36%;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(ellipse at center,
+      rgba(255,200,90,0.10) 0%,
+      rgba(230,80,18,0.045) 45%,
+      transparent 75%);
+    mix-blend-mode:screen;
+    animation:reflShimmer 18s ease-in-out infinite alternate;
+  }
+  /* edge bulb — top-left corner, dimmer, cooler */
+  .safelight-refl.edge{
+    top:0; left:0;
+    width:45%; height:40%;
+    transform:translate(-30%,-35%);
+    background:radial-gradient(ellipse at center,
+      rgba(220,120,40,0.055) 0%,
+      rgba(180,50,10,0.022) 50%,
+      transparent 78%);
+    mix-blend-mode:screen;
+    animation:reflShimmerEdge 24s ease-in-out infinite alternate;
+  }
+  body.focus .safelight-refl{ opacity:0; }
+  @keyframes reflShimmer{
+    0%  { transform:translate(-50%,-50%) scale(1.00) rotate(-1deg); opacity:0.7; }
+    50% { transform:translate(-50%,-50%) scale(1.08) rotate(1deg);  opacity:1.0; }
+    100%{ transform:translate(-50%,-50%) scale(1.03) rotate(-0.5deg); opacity:0.75; }
+  }
+  @keyframes reflShimmerEdge{
+    0%  { transform:translate(-30%,-35%) scale(1.00); opacity:0.6; }
+    50% { transform:translate(-28%,-32%) scale(1.06); opacity:0.9; }
+    100%{ transform:translate(-31%,-36%) scale(1.02); opacity:0.65; }
+  }
+
+  /* animated water-surface turbulence layer */
+  #wsurf{
+    position:fixed; inset:0; z-index:13;
+    width:100%; height:100%;
+    pointer-events:none;
+    opacity:0.30;
+    mix-blend-mode:screen;
+    transition:opacity 0.6s ease;
+  }
+  body.focus #wsurf{ opacity:0; }
+  /* pause all expensive layers while dragging */
+  body.dragging #wsurf,
+  body.dragging .caustics,
+  body.dragging .sheen,
+  body.dragging .safelight-refl{ opacity:0 !important; transition:none; }
+  @keyframes sheen{
+    from{ background-position:0% 0%; }
+    to{ background-position:100% 100%; }
+  }
+  /* faint expanding ring where you touch the water */
+  .ripple{
+    position:fixed; z-index:850; pointer-events:none;
+    width:150px; height:150px; border-radius:50%;
+    border:1px solid rgba(var(--shimmer),0.30);
+    transform:translate(-50%,-50%) scale(0.12);
+    opacity:0;
+    animation:rip 1.1s cubic-bezier(.2,.6,.3,1) forwards;
+  }
+  @keyframes rip{
+    0%{ transform:translate(-50%,-50%) scale(0.12); opacity:0.55; }
+    100%{ transform:translate(-50%,-50%) scale(1); opacity:0; }
+  }
+  /* water dripping off a lifted print */
+  .drip{
+    position:fixed; z-index:980; pointer-events:none;
+    width:4px; height:12px;
+    border-radius:46% 46% 58% 58% / 32% 32% 68% 68%;
+    background:linear-gradient(180deg, rgba(255,140,100,0.30), rgba(170,28,10,0.55));
+    box-shadow:inset 0.5px 1px 1px rgba(255,200,170,0.35);
+  }
+
+  /* infinite viewport */
+  .viewport{
+    position:fixed; inset:0; z-index:1;
+    overflow:hidden;
+    cursor:grab;
+    touch-action:none;
+  }
+  .viewport.dragging{ cursor:grabbing; }
+  .world{ position:absolute; top:0; left:0; will-change:transform; }
+
+  /* a print in the developer tray */
+  .photo{
+    position:absolute;
+    padding:9px 9px 14px 9px; /* wider bottom like a real darkroom print */
+    border-radius:0;
+    background:rgb(148,136,120);   /* darker while submerged; reveals on lift */
+    box-shadow:0 3px 12px rgba(0,0,0,0.60);
+    cursor:grab;
+    transform-origin:center center;
+    will-change:transform;
+    z-index:1;
+    transition:opacity 0.6s ease, background 0.85s cubic-bezier(.2,.7,.2,1);
+  }
+  .photo.dev{ background:rgb(238,232,220); }
+  .viewport.dragging .photo{ cursor:grabbing; }
+  /* clips the image; water and expand sit as siblings in .photo */
+  .photo-content{
+    position:relative; width:100%; height:100%;
+    overflow:hidden; z-index:1;
+  }
+
+  /* "Drag" text floating above the cursor hand */
+  .photo img{
+    display:block; width:100%; height:100%; object-fit:cover;
+    filter:grayscale(1) brightness(0.52) contrast(1.15);
+    transition:filter 0.85s cubic-bezier(.2,.7,.2,1);
+    -webkit-user-drag:none;
+  }
+  /* water covers the FULL photo element — image AND paper border get the tint */
+  .water{
+    position:absolute; inset:0; z-index:2; pointer-events:none;
+    background:
+      radial-gradient(140% 100% at 50% 0%, rgba(240,48,8,0.96), rgba(190,24,5,0.97) 55%, rgba(80,6,2,0.98));
+    mix-blend-mode:multiply;
+    transition:opacity 0.85s cubic-bezier(.2,.7,.2,1);
+  }
+  .water::after{
+    content:""; position:absolute; inset:-60%;
+    background:linear-gradient(112deg, transparent 40%, rgba(var(--shimmer),0.09) 50%, transparent 60%);
+    mix-blend-mode:screen;
+    animation:glint 14s ease-in-out infinite alternate;
+  }
+  @keyframes glint{
+    from{ transform:translate(-16%,-4%); }
+    to{ transform:translate(16%,4%); }
+  }
+
+  /* hover expand affordance — sits above water at z-index 3 */
+  .expand{
+    position:absolute; top:17px; right:17px; z-index:3;
+    width:28px; height:28px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(10,12,18,0.55);
+    border:1px solid rgba(255,255,255,0.12);
+    color:rgba(230,225,215,0.85);
+    -webkit-backdrop-filter:blur(5px); backdrop-filter:blur(5px);
+    opacity:0; transition:opacity 0.25s ease;
+    pointer-events:none;
+  }
+  .expand svg{ width:13px; height:13px; }
+  @media (hover:hover){
+    .photo:hover .expand{ opacity:1; }
+  }
+  .photo.dev .expand, body.focus .expand{ opacity:0 !important; }
+
+  /* lifted out and developed */
+  .photo.dev{
+    z-index:1000;
+    cursor:zoom-out;
+    transition:transform 0.7s cubic-bezier(.2,.75,.18,1);
+    box-shadow:0 40px 90px rgba(0,0,0,0.85);
+  }
+  .photo.dev img{ filter:none; }
+  .photo.dev .water{ opacity:0; }
+  .photo.returning{ transition:transform 0.7s cubic-bezier(.2,.75,.18,1); }
+
+  .backdrop{
+    position:fixed; inset:0; z-index:900;
+    background:rgba(0,0,0,0.98);
+    opacity:0; pointer-events:none;
+    transition:opacity 0.35s ease;
+    cursor:zoom-out;
+  }
+  .backdrop.show{ opacity:1; pointer-events:auto; }
+
+  /* when a print is lifted, everything else sinks back */
+  .ambient,.caustics,.sheen,.depthhaze{ transition:opacity 0.6s ease; }
+  body.focus .ambient, body.focus .caustics, body.focus .sheen, body.focus .depthhaze{ opacity:0; }
+  body.focus .photo:not(.dev){ opacity:0; }
+
+  /* ---- logo, top left ---- */
+  .logo{
+    position:fixed; top:calc(var(--rim) + 31px); left:calc(var(--rim) + 22px); z-index:1300;
+    transform:translateY(-50%);
+    font:700 14px/1 "Arial Narrow","Impact",ui-sans-serif,sans-serif;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:rgb(222,92,16);
+    text-shadow:0 0 12px rgba(220,80,10,0.35);
+    pointer-events:none;
+    transition:opacity 0.4s ease;
+    user-select:none; -webkit-user-select:none;
+  }
+  body.focus .logo{ opacity:0; }
+
+  /* ---- filters, top right ---- */
+  .filters{
+    position:fixed; top:calc(var(--rim) + 14px); right:calc(var(--rim) + 22px); z-index:1300;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    transition:opacity 0.4s ease;
+  }
+  body.focus .filters{ opacity:0; pointer-events:none; }
+  .fbtn{
+    width:34px; height:34px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(10,12,18,0.55);
+    border:1px solid rgba(255,255,255,0.10);
+    border-radius:50%;
+    color:rgba(220,215,205,0.75);
+    cursor:pointer;
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    transition:color 0.25s ease, border-color 0.25s ease;
+  }
+  .fbtn:hover, .fbtn.active{ color:#efe9dc; border-color:rgba(255,255,255,0.28); }
+  .fbtn svg{ width:16px; height:16px; display:block; }
+  .fbtn .flag{
+    position:absolute; top:-6px; right:-6px;
+    font-size:10px; line-height:1;
+    opacity:0; transition:opacity 0.25s ease;
+    pointer-events:none;
+  }
+  .fbtn.filtered .flag{ opacity:1; }
+
+  .dropdown{
+    position:absolute; top:42px; right:0;
+    min-width:148px; padding:4px;
+    background:rgba(22,16,10,0.97);
+    border:1px solid rgba(220,100,20,0.35);
+    border-radius:4px;
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    display:none;
+  }
+  .dropdown.open{ display:block; }
+  .dropdown button{
+    display:flex; align-items:center; gap:7px;
+    width:100%; padding:8px 12px;
+    background:none; border:0; border-radius:2px;
+    text-align:left; cursor:pointer;
+    font:700 10px/1 "Arial Narrow","Impact",ui-sans-serif,sans-serif;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:rgb(230,165,80);
+  }
+  .dropdown button .dflag{ font-size:11px; line-height:1; flex-shrink:0; }
+  .dropdown button:hover{ background:rgba(220,80,10,0.18); color:rgb(255,195,110); }
+  .dropdown button.on{
+    color:rgb(255,200,90);
+    background:rgba(220,80,10,0.22);
+    text-shadow:0 0 8px rgba(238,160,20,0.5);
+  }
+
+  /* ---- the tray edge: a FOREGROUND object, closer than the photos ----
+     oversized + slightly blurred (too near the lens to focus) + parallax */
+  :root{ --rim: clamp(16px, 3vw, 34px); }
+  .tray{
+    position:fixed; inset:-28px; z-index:1200;
+    pointer-events:none;
+    filter:blur(0.6px);                              /* just a touch of nearness */
+    will-change:transform;
+    transition:opacity 0.6s ease, filter 0.6s ease;
+  }
+  /* moulded plastic rim — sits outside the red zone, warm-neutral */
+  .tray::before{
+    content:""; position:absolute; inset:calc(28px + var(--rim));
+    border-radius:0;
+    box-shadow:
+      0 0 0 9999px #23211f,                         /* warm-dark plastic body */
+      inset 0 60px 130px rgba(0,0,0,0.70),
+      inset 0 -44px 110px rgba(0,0,0,0.60),
+      inset 52px 0 110px rgba(0,0,0,0.55),
+      inset -52px 0 110px rgba(0,0,0,0.55),
+      inset 0 14px 22px rgba(0,0,0,0.65);
+  }
+  /* sharp inner-edge lip — the corner where rim meets liquid */
+  .tray .lip{
+    position:absolute; inset:calc(28px + var(--rim));
+    border-radius:0;
+    border-top:1.5px solid rgba(235,230,222,0.20);
+    border-left:1.5px solid rgba(235,230,222,0.11);
+    border-right:1.5px solid rgba(235,230,222,0.09);
+    border-bottom:1.5px solid rgba(235,230,222,0.06);
+    box-shadow:
+      0 0 0 1px #0e0d0c,
+      inset 0 0 12px rgba(0,0,0,0.35);
+  }
+  /* when a print lifts toward you, the rim falls even further out of focus */
+  body.focus .tray{ opacity:0.30; filter:blur(5px); }
+
+</style>
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="caustics"></div>
+  <div class="caustics b"></div>
+  <div class="caustics c"></div>
+  <div class="depthhaze"></div>
+  <div class="sheen"></div>
+  <div class="viewport" id="viewport"><div class="world" id="world"></div><div class="backdrop" id="backdrop"></div></div>
+
+  <!-- animated water surface texture (sits above photos, below tray) -->
+  <svg id="wsurf" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="wf" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="turbulence" baseFrequency="0.016 0.006" numOctaves="3" seed="5">
+          <animate attributeName="baseFrequency"
+            values="0.016 0.006;0.021 0.010;0.014 0.005;0.019 0.009;0.016 0.006"
+            dur="22s" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feColorMatrix type="matrix"
+          values="0 0 0 0 0.78  0 0 0 0 0.13  0 0 0 0 0.04  0 0 0 0.26 0"/>
+      </filter>
+    </defs>
+    <rect width="100%" height="100%" filter="url(#wf)"/>
+  </svg>
+  <div class="safelight-refl centre"></div>
+  <div class="safelight-refl edge"></div>
+  <div class="tray" id="tray">
+    <div class="lip"></div>
+  </div>
+
+  <div class="logo">PG35MM</div>
+
+  <div class="filters">
+    <button class="fbtn" id="globeBtn" aria-label="Filter by country" style="position:relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M3 12h18M12 3c2.8 2.6 4.2 5.6 4.2 9s-1.4 6.4-4.2 9c-2.8-2.6-4.2-5.6-4.2-9s1.4-6.4 4.2-9z"/>
+      </svg>
+      <span class="flag" id="flagBadge"></span>
+    </button>
+    <div class="dropdown" id="globeMenu"></div>
+  </div>
+
+<script>
+/* ============================================================
+   YOUR REAL PHOTOS
+   1. Make a folder called  photos/  next to this file.
+   2. Drop your scans in it (landscape 6x4 / 3:2 look best).
+   3. List them below — as soon as this array has entries,
+      the dummy photos switch off automatically.
+   ============================================================ */
+const REAL_PHOTOS = [
+  { src: "images/6x4_Bythesea(1).jpg" },
+  { src: "images/6x4_Goodnight.jpg" },
+  { src: "images/6x4_H20.jpg" },
+  { src: "images/6x4_SecurityGuard.jpg" },
+  { src: "images/6x4_Starsstripes&shadows.jpg", country: "USA" },
+  { src: "images/6x4_alfresco.jpg" },
+  { src: "images/6x4_backstreetboys.jpg" },
+  { src: "images/6x4_bebe.jpg" },
+  { src: "images/6x4_bythesea.jpg" },
+  { src: "images/6x4_holdtight.jpg" },
+  { src: "images/6x4_incomcalls.jpg" },
+  { src: "images/6x4_intheshade.jpg" },
+  { src: "images/6x4_intheshadows.jpg" },
+  { src: "images/6x4_juhubeach1.jpg", country: "India" },
+  { src: "images/6x4_juhubeach2.jpg", country: "India" },
+  { src: "images/6x4_juhubeach3.jpg", country: "India" },
+  { src: "images/6x4_juhubeachseller1.jpg", country: "India" },
+  { src: "images/6x4_juhubeachseller3.jpg", country: "India" },
+  { src: "images/6x4_layers.jpg" },
+  { src: "images/6x4_lifegoals.jpg" },
+  { src: "images/6x4_lightleaklunch.jpg" },
+  { src: "images/6x4_mother&daughter.jpg", portrait: true },
+  { src: "images/6x4_motoism.jpg" },
+  { src: "images/6x4_mountainman.jpg" },
+  { src: "images/6x4_musclemonday.jpg" },
+  { src: "images/6x4_needcash.jpg" },
+  { src: "images/6x4_northernsoul.jpg", portrait: true, country: "Europe" },
+  { src: "images/6x4_orkcallsmsnynet.jpg" },
+  { src: "images/6x4_pitstop.jpg" },
+  { src: "images/6x4_redblue.jpg" },
+  { src: "images/6x4_rocksinthehotsun.jpg" },
+  { src: "images/6x4_rojsupermarket.jpg" },
+  { src: "images/6x4_roomwithview.jpg" },
+  { src: "images/6x4_schoolsout.jpg" },
+  { src: "images/6x4_sexy.jpg" },
+  { src: "images/6x4_shadows.jpg" },
+  { src: "images/6x4_smoke&haze.jpg" },
+  { src: "images/6x4_snowday.jpg" },
+  { src: "images/6x4_soulman.jpg" },
+  { src: "images/6x4_spaceisjustbeginning.jpg" },
+  { src: "images/6x4_stuntin.jpg" },
+  { src: "images/6x4_todaysheadlines.jpg" },
+  { src: "images/6x4_umitcinema.jpg", country: "Europe" },
+  { src: "images/6x4_vaping.jpg", portrait: true },
+  { src: "images/6x4_venicebeach1.jpg", country: "USA" },
+  { src: "images/6x4_venicebeach3.jpg", country: "USA" },
+  { src: "images/6x4_withsomefans.jpg" },
+  { src: "images/6x4_youngandold.jpg" },
+  { src: "images/6x4web_Brooklynatwork.jpg", country: "USA" },
+  { src: "images/6x4web_Countingupthetakings.jpg" },
+  { src: "images/6x4web_Happyholi.jpg", country: "India" },
+  { src: "images/6x4web_Impendingelection.jpg", portrait: true, country: "Europe" },
+  { src: "images/6x4web_Parson_sciggeratebreak.jpg", portrait: true, country: "Europe" },
+  { src: "images/6x4web_Radbourneclose.jpg", country: "Europe" },
+  { src: "images/6x4web_capitalofspies.jpg", country: "Europe" },
+];
+
+/* ---- self-contained dummy photos (used while REAL_PHOTOS is empty) ---- */
+const COUNTRIES = ["Japan","Italy","France","Morocco","Iceland","Portugal"];
+
+const PALETTES = {
+  Japan:    [["#f6c8c4","#8aa6c9"],["#e8b4a0","#5b7a9d"],["#f2d4cc","#7d92b5"]],
+  Italy:    [["#f5d9a8","#c98f5e"],["#e9c46a","#a8693c"],["#f4e3c1","#b87f4f"]],
+  France:   [["#cdd8e3","#8898a8"],["#dfe6ec","#9aa8b8"],["#c5d2dd","#788899"]],
+  Morocco:  [["#f0c9a0","#c4744a"],["#e8b88a","#a85f38"],["#f5d6b0","#b56b40"]],
+  Iceland:  [["#bcd2dc","#5d7d8d"],["#cfdfe6","#6d8a98"],["#a8c4d2","#4d6d80"]],
+  Portugal: [["#f7d8b5","#d18a6a"],["#f0cfa6","#c47a55"],["#fae2c0","#da9572"]],
+};
+
+function rnd(seed){
+  let s = seed * 9301 + 49297;
+  return () => (s = (s * 9301 + 49297) % 233280) / 233280;
+}
+
+function makeDummy(i, country){
+  const r = rnd(i + 7);
+  const W = 600, Hc = 400;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = Hc;
+  const g = c.getContext('2d');
+
+  const pal = PALETTES[country] || PALETTES.Japan;
+  const [skyTop, skyLow] = pal[i % pal.length];
+
+  const sky = g.createLinearGradient(0, 0, 0, Hc);
+  sky.addColorStop(0, skyTop); sky.addColorStop(1, skyLow);
+  g.fillStyle = sky; g.fillRect(0, 0, W, Hc);
+
+  const sx = W*(0.2 + r()*0.6), sy = Hc*(0.18 + r()*0.25), sr = 16 + r()*26;
+  const glow = g.createRadialGradient(sx, sy, 0, sx, sy, sr*4);
+  glow.addColorStop(0, 'rgba(255,245,225,0.85)');
+  glow.addColorStop(1, 'rgba(255,245,225,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, Hc);
+  g.fillStyle = 'rgba(255,250,235,0.95)';
+  g.beginPath(); g.arc(sx, sy, sr, 0, 7); g.fill();
+
+  const horizon = Hc*(0.5 + r()*0.18);
+  for (let l = 0; l < 3; l++){
+    const yBase = horizon + l*Hc*0.12;
+    const dark = 0.18 + l*0.16;
+    g.fillStyle = 'rgba(20,'+(26+l*4)+','+(34+l*4)+','+dark+')';
+    g.beginPath(); g.moveTo(0, Hc);
+    let x = 0, y = yBase;
+    g.lineTo(0, y);
+    while (x < W){
+      x += 30 + r()*70;
+      y = yBase + (r()-0.5)*Hc*(0.10 + l*0.05);
+      g.lineTo(Math.min(x, W), y);
+    }
+    g.lineTo(W, Hc); g.closePath(); g.fill();
+  }
+
+  if (r() > 0.45){
+    const wy = horizon + Hc*0.22;
+    const sea = g.createLinearGradient(0, wy, 0, Hc);
+    sea.addColorStop(0, 'rgba(180,200,210,0.35)');
+    sea.addColorStop(1, 'rgba(30,45,55,0.5)');
+    g.fillStyle = sea; g.fillRect(0, wy, W, Hc - wy);
+    g.fillStyle = 'rgba(255,245,225,0.18)';
+    g.fillRect(sx - sr*0.8, wy, sr*1.6, Hc - wy);
+  }
+
+  const grain = g.getImageData(0, 0, W, Hc);
+  const d = grain.data;
+  for (let p = 0; p < d.length; p += 4){
+    const n = (r()-0.5)*22;
+    d[p]+=n; d[p+1]+=n; d[p+2]+=n;
+  }
+  g.putImageData(grain, 0, 0);
+
+  const vig = g.createRadialGradient(W/2, Hc/2, Hc*0.35, W/2, Hc/2, Hc*0.95);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(10,8,6,0.38)');
+  g.fillStyle = vig; g.fillRect(0, 0, W, Hc);
+  g.fillStyle = 'rgba(255,180,90,0.05)'; g.fillRect(0, 0, W, Hc);
+
+  return c.toDataURL('image/jpeg', 0.82);
+}
+
+const PHOTOS = REAL_PHOTOS.length ? REAL_PHOTOS :
+  Array.from({ length: 72 }, (_, i) => {
+    const country = COUNTRIES[i % COUNTRIES.length];
+    return { src: makeDummy(i, country), country };
+  });
+
+/* shuffle once per load so the grid is different every visit */
+for (let i = PHOTOS.length - 1; i > 0; i--){
+  const j = Math.floor(Math.random() * (i + 1));
+  [PHOTOS[i], PHOTOS[j]] = [PHOTOS[j], PHOTOS[i]];
+}
+
+let activeCountry = null;   // null = show all
+
+/* ============================================================
+   Infinite drifting wall
+   ============================================================ */
+const viewport = document.getElementById('viewport');
+const world = document.getElementById('world');
+const backdrop = document.getElementById('backdrop');
+const reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+let W, H, PW, PH, PH_PORT, GAPX, GAPY, TW, TH, cols, rows, periodX, periodY;
+let LIST = PHOTOS;
+let camX = 0, camY = 0;
+const AUTO_VX = 3.2, AUTO_VY = 2.0;   // px per second — very slow drift
+const cells = new Map();              // "c,r" -> cell
+let expanded = null;
+let dragging = false, suppressClick = false;
+
+function metrics(){
+  W = window.innerWidth; H = window.innerHeight;
+  PW = Math.round(Math.min(380, Math.max(160, W * 0.28)));
+  PH = Math.round(PW * 2 / 3);                 // 6x4 landscape
+  PH_PORT = Math.round(PW * 3 / 2);            // portrait 4x6
+  GAPX = Math.round(PW * 0.045);               // close but not touching
+  GAPY = Math.round(PW * 0.045);
+  TW = PW + GAPX; TH = PH + GAPY;
+}
+
+function rebuild(){
+  LIST = activeCountry ? PHOTOS.filter(p => p.country === activeCountry) : PHOTOS;
+  if (!LIST.length) LIST = PHOTOS;
+  cols = Math.max(3, Math.round(Math.sqrt(LIST.length)));
+  rows = Math.max(1, Math.ceil(LIST.length / cols));
+  periodX = cols * TW; periodY = rows * TH;
+  for (const cell of cells.values()) cell.el.remove();
+  cells.clear();
+}
+
+function mod(n, m){ return ((n % m) + m) % m; }
+
+function cellRandom(c, r){
+  let s = (mod(c, cols) * 73856093 ^ mod(r, rows) * 19349663) >>> 0;
+  s = (s + 1013904223) >>> 0;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function makeCell(c, r){
+  const rr = cellRandom(c, r);
+  const rot = rr() < 0.25 ? 0 : (rr() - 0.5) * 2.8;  // most angled, some straight, ±1.4° max
+  const idx = (mod(c, cols) + mod(r, rows) * cols) % LIST.length;
+  const ph = LIST[idx];
+  const isPortrait = ph.portrait === true;
+  const cellH = isPortrait ? PH_PORT : PH;
+
+  const el = document.createElement('div');
+  el.className = 'photo';
+  el.style.cssText = 'width:'+PW+'px;height:'+cellH+'px;left:'+(c*TW)+'px;top:'+(r*TH)+'px;'+(isPortrait?'z-index:2;':'');
+  el.innerHTML = '<div class="photo-content"><img alt="" draggable="false"></div>' +
+    '<div class="water"></div>' +
+    '<div class="expand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></div>';
+
+  const img = el.querySelector('img');
+  img.decoding = 'async';
+  img.onerror = () => {
+    const hue = (idx*53)%360;
+    el.style.background =
+      'linear-gradient(150deg,hsl('+hue+' 30% 22%),hsl('+((hue+40)%360)+' 35% 12%))';
+    img.style.display = 'none';
+  };
+  img.src = ph.src;
+
+  const cell = { el, rot, phase: rr()*Math.PI*2, speed: 0.5 + rr()*0.9, cellH };
+  el._cell = cell;
+  world.appendChild(el);
+  return cell;
+}
+
+let lastEnsureX = -9999, lastEnsureY = -9999;
+function ensureCells(){
+  // during drag only rebuild when camera crosses a full cell boundary
+  if (dragging && Math.abs(camX - lastEnsureX) < TW && Math.abs(camY - lastEnsureY) < TH) return;
+  lastEnsureX = camX; lastEnsureY = camY;
+  const c0 = Math.floor((camX - PW) / TW) - 1, c1 = Math.floor((camX + W) / TW) + 1;
+  const r0 = Math.floor((camY - PH) / TH) - 1, r1 = Math.floor((camY + H) / TH) + 1;
+  const keep = new Set();
+  for (let r = r0; r <= r1; r++){
+    for (let c = c0; c <= c1; c++){
+      const key = c + ',' + r;
+      keep.add(key);
+      if (!cells.has(key)) cells.set(key, makeCell(c, r));
+    }
+  }
+  for (const [key, cell] of cells){
+    if (!keep.has(key) && cell !== expanded){
+      cell.el.remove();
+      cells.delete(key);
+    }
+  }
+}
+
+/* ---------- main loop: auto drift + per-print sway ---------- */
+let t = 0, lastNow = performance.now();
+
+/* foreground rim parallax — nearer objects move opposite your gaze */
+const tray = document.getElementById('tray');
+let trayX = 0, trayY = 0, trayTX = 0, trayTY = 0;
+window.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  trayTX = -((e.clientX / W) - 0.5) * 16;
+  trayTY = -((e.clientY / H) - 0.5) * 14;
+});
+
+function driftTransform(cell){
+  const dx = Math.sin(t*0.38*cell.speed + cell.phase) * 9.5
+           + Math.sin(t*0.15*cell.speed + cell.phase*2.3) * 3.8;
+  const dy = Math.cos(t*0.32*cell.speed + cell.phase*1.7) * 8.5
+           + Math.cos(t*0.12*cell.speed + cell.phase*0.6) * 3.2;
+  const dr = Math.sin(t*0.20*cell.speed + cell.phase) * 0.38;
+  const bob = 1 + Math.sin(t*1.05*cell.speed + cell.phase*1.3) * 0.032;
+  return 'translate('+dx.toFixed(2)+'px,'+dy.toFixed(2)+'px) rotate('+(cell.rot+dr).toFixed(2)+'deg) scale('+bob.toFixed(4)+')';
+}
+
+function tick(now){
+  const dt = Math.min(0.05, (now - lastNow) / 1000);
+  lastNow = now;
+  t += dt;
+
+  if (!expanded && !reduce){
+    camX += AUTO_VX * dt;
+    camY += AUTO_VY * dt;
+  }
+  if (!dragging){
+    // momentum coast after release
+    if (Math.abs(velX) > 0.1 || Math.abs(velY) > 0.1){
+      camX += velX * dt;
+      camY += velY * dt;
+      velX *= Math.pow(0.88, dt);
+      velY *= Math.pow(0.88, dt);
+    }
+    if (camX > periodX) camX -= periodX;
+    if (camX < 0) camX += periodX;
+    if (camY > periodY) camY -= periodY;
+    if (camY < 0) camY += periodY;
+  }
+
+  ensureCells();
+  // suppress the world wobble during drag so panning feels direct
+  const wobX = (reduce || dragging) ? 0 : Math.sin(t*0.33) * 0.9;
+  const wobY = (reduce || dragging) ? 0 : Math.cos(t*0.26) * 0.8;
+  world.style.transform = 'translate3d('+(-camX + wobX).toFixed(2)+'px,'+(-camY + wobY).toFixed(2)+'px,0)';
+
+  // rim parallax — skip during drag to save work
+  if (!dragging){
+    const ix = Math.sin(t*0.10) * 1.6, iy = Math.cos(t*0.08) * 1.3;
+    trayX += (trayTX + ix - trayX) * 0.05;
+    trayY += (trayTY + iy - trayY) * 0.05;
+    tray.style.transform = 'translate3d('+trayX.toFixed(2)+'px,'+trayY.toFixed(2)+'px,0)';
+  }
+
+  if (!reduce && !dragging){
+    for (const cell of cells.values()){
+      if (cell === expanded || cell.el.classList.contains('returning')) continue;
+      cell.el.style.transform = driftTransform(cell);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ---------- develop on click ---------- */
+let settling = false;   // true while a print is sinking back
+
+function onClick(cell){
+  if (suppressClick) return;
+  if (cell === expanded){ collapse(); return; }
+  if (expanded || settling) return;   // clicking out always returns to the grid
+  develop(cell);
+}
+
+function develop(cell){
+  expanded = cell;
+  const cellH = cell.cellH || PH;
+  const r = cell.el.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+  const s = Math.min(H*0.86 / cellH, W*0.92 / PW);
+  const dx = W/2 - cx, dy = H/2 - cy;
+
+  cell.el.classList.add('dev');
+  void cell.el.offsetWidth;
+  cell.el.style.transform = 'translate('+dx+'px,'+dy+'px) scale('+s+') rotate(0deg)';
+  document.body.classList.add('focus');
+  backdrop.classList.add('show');
+
+  // the water it left behind, disturbed
+  spawnRipple(cx, cy);
+
+  // drips running off the bottom edge once it's up
+  if (!reduce){
+    const bottomY = H/2 + (cellH*s)/2;
+    const halfW = (PW*s)/2;
+    const n = 7 + Math.floor(Math.random()*4);
+    for (let i = 0; i < n; i++){
+      setTimeout(() => {
+        if (expanded !== cell) return;
+        const x = W/2 + (Math.random()*1.7 - 0.85) * halfW;
+        spawnDrip(x, bottomY - 4);
+      }, 380 + Math.random()*1600);
+    }
+  }
+}
+
+function spawnDrip(x, y){
+  const d = document.createElement('div');
+  d.className = 'drip';
+  d.style.left = x + 'px';
+  d.style.top = y + 'px';
+  const fall = 90 + Math.random()*180;
+  const dur = 600 + Math.random()*450;
+  const sway = (Math.random()-0.5) * 10;
+  document.body.appendChild(d);
+  d.animate([
+    { transform:'translate(-50%,0) scaleY(0.4) scaleX(1.4)', opacity:0 },
+    { transform:'translate(-50%,'+(fall*0.12)+'px) scaleY(1) scaleX(1)', opacity:0.85, offset:0.18 },
+    { transform:'translate(calc(-50% + '+sway+'px),'+fall+'px) scaleY(1.25) scaleX(0.85)', opacity:0 }
+  ], { duration:dur, easing:'cubic-bezier(.45,.05,.9,.6)' })
+   .onfinish = () => d.remove();
+}
+
+function collapse(){
+  const cell = expanded; if (!cell) return;
+  expanded = null;
+  settling = true;
+  document.body.classList.remove('focus');
+  backdrop.classList.remove('show');
+  cell.el.classList.add('returning');
+  cell.el.classList.remove('dev');
+  cell.el.style.transform = driftTransform(cell);
+  let landed = false;
+  const done = () => {
+    if (landed) return;
+    landed = true;
+    cell.el.classList.remove('returning');
+    settling = false;
+    cell.el.removeEventListener('transitionend', done);
+    const rr = cell.el.getBoundingClientRect();
+    spawnRipple(rr.left + rr.width/2, rr.top + rr.height/2);   // it lands back in the water
+  };
+  cell.el.addEventListener('transitionend', done);
+  setTimeout(done, 900);   // safety net if transitionend never fires
+}
+
+backdrop.addEventListener('pointerdown', collapse);
+window.addEventListener('keydown', e => { if (e.key === 'Escape') collapse(); });
+
+/* ---------- pan: drag (mouse + touch) and wheel ---------- */
+let sx, sy, scx, scy;
+viewport.addEventListener('pointerdown', e => {
+  if (expanded) return;
+  dragging = true; suppressClick = false;
+  sx = e.clientX; sy = e.clientY;
+  scx = camX; scy = camY;
+  velX = 0; velY = 0; lastDragT = performance.now();
+  viewport.classList.add('dragging');
+  document.body.classList.add('dragging');
+  viewport.setPointerCapture(e.pointerId);
+  spawnRipple(e.clientX, e.clientY);
+});
+let velX = 0, velY = 0, lastDragX = 0, lastDragY = 0, lastDragT = 0;
+viewport.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - sx, dy = e.clientY - sy;
+  if (Math.hypot(dx, dy) > 5) suppressClick = true;
+  const newCamX = scx - dx * 1.7;
+  const newCamY = scy - dy * 1.7;
+  const now = performance.now();
+  const dt = Math.max(1, now - lastDragT);
+  velX = (newCamX - camX) / dt * 16;
+  velY = (newCamY - camY) / dt * 16;
+  lastDragT = now;
+  camX = newCamX;
+  camY = newCamY;
+});
+function endDrag(e){
+  if (!dragging) return;
+  dragging = false;
+  viewport.classList.remove('dragging');
+  document.body.classList.remove('dragging');
+  // pointer capture eats click events, so detect the tap ourselves
+  if (e && !suppressClick){
+    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    const photoEl = hit && hit.closest('.photo');
+    if (photoEl && photoEl._cell) onClick(photoEl._cell);
+  }
+}
+viewport.addEventListener('pointerup', endDrag);
+viewport.addEventListener('pointercancel', () => endDrag(null));
+
+viewport.addEventListener('wheel', e => {
+  if (expanded) return;
+  e.preventDefault();
+  camX += e.deltaX;
+  camY += e.deltaY;
+}, { passive: false });
+
+/* ---------- liquid touches: ripple + drag label ---------- */
+function spawnRipple(x, y){
+  if (reduce) return;
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  r.style.left = x + 'px';
+  r.style.top = y + 'px';
+  document.body.appendChild(r);
+  r.addEventListener('animationend', () => r.remove());
+}
+
+
+/* ---------- country filter ---------- */
+const globeBtn  = document.getElementById('globeBtn');
+const globeMenu  = document.getElementById('globeMenu');
+const flagBadge  = document.getElementById('flagBadge');
+const FLAG = { USA:'🇺🇸', India:'🇮🇳', Europe:'🇪🇺', 'S. America':'🌎' };
+
+function updateFlag(){
+  flagBadge.textContent = activeCountry ? (FLAG[activeCountry] || '📍') : '';
+}
+
+function renderMenu(){
+  const items = ['All', ...new Set(PHOTOS.map(p => p.country))];
+  globeMenu.innerHTML = '';
+  items.forEach(name => {
+    const b = document.createElement('button');
+    const emoji = FLAG[name];
+    if (emoji){ const s = document.createElement('span'); s.className='dflag'; s.textContent=emoji; b.appendChild(s); }
+    b.appendChild(document.createTextNode(name));
+    const isOn = (name === 'All' && !activeCountry) || name === activeCountry;
+    if (isOn) b.classList.add('on');
+    b.addEventListener('click', () => {
+      activeCountry = (name === 'All') ? null : name;
+      globeBtn.classList.toggle('filtered', !!activeCountry);
+      updateFlag();
+      globeMenu.classList.remove('open');
+      globeBtn.classList.remove('active');
+      if (expanded) collapse();
+      rebuild();
+      renderMenu();
+    });
+    globeMenu.appendChild(b);
+  });
+}
+renderMenu();
+
+globeBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  globeMenu.classList.toggle('open');
+  globeBtn.classList.toggle('active', globeMenu.classList.contains('open'));
+});
+document.addEventListener('pointerdown', e => {
+  if (!e.target.closest('.filters')){
+    globeMenu.classList.remove('open');
+    globeBtn.classList.remove('active');
+  }
+});
+
+/* ---------- boot + resize ---------- */
+metrics();
+rebuild();
+requestAnimationFrame(tick);
+
+let rt;
+window.addEventListener('resize', () => {
+  clearTimeout(rt);
+  rt = setTimeout(() => {
+    if (expanded) collapse();
+    metrics();
+    rebuild();
+  }, 200);
+});
+</script>
+</body>
+</html>
