@@ -182,10 +182,12 @@
     transform-origin:center center;
     will-change:transform;
     z-index:1;
+    contain:layout style;
     transition:opacity 0.6s ease, background 0.85s cubic-bezier(.2,.7,.2,1);
   }
   .photo.dev{ background:rgb(238,232,220); }
-  .viewport.dragging .photo{ cursor:grabbing; }
+  .viewport.dragging .photo{ cursor:grabbing; pointer-events:none; }
+  .viewport.dragging .photo.dev{ pointer-events:auto; }
   /* clips the image; water and expand sit as siblings in .photo */
   .photo-content{
     position:relative; width:100%; height:100%;
@@ -657,11 +659,12 @@ function makeCell(c, r){
 
 let lastEnsureX = -9999, lastEnsureY = -9999;
 function ensureCells(){
-  // during drag only rebuild when camera crosses a full cell boundary
-  if (dragging && Math.abs(camX - lastEnsureX) < TW && Math.abs(camY - lastEnsureY) < TH) return;
+  if (Math.abs(camX - lastEnsureX) < TW * 0.4 && Math.abs(camY - lastEnsureY) < TH * 0.4) return;
   lastEnsureX = camX; lastEnsureY = camY;
-  const c0 = Math.floor((camX - PW) / TW) - 1, c1 = Math.floor((camX + W) / TW) + 1;
-  const r0 = Math.floor((camY - PH) / TH) - 1, r1 = Math.floor((camY + H) / TH) + 1;
+  // larger pre-buffer so cells exist before the camera reaches them
+  const buf = 2;
+  const c0 = Math.floor((camX - PW) / TW) - buf, c1 = Math.floor((camX + W) / TW) + buf;
+  const r0 = Math.floor((camY - PH) / TH) - buf, r1 = Math.floor((camY + H) / TH) + buf;
   const keep = new Set();
   for (let r = r0; r <= r1; r++){
     for (let c = c0; c <= c1; c++){
@@ -670,10 +673,13 @@ function ensureCells(){
       if (!cells.has(key)) cells.set(key, makeCell(c, r));
     }
   }
-  for (const [key, cell] of cells){
-    if (!keep.has(key) && cell !== expanded){
-      cell.el.remove();
-      cells.delete(key);
+  // only prune when not dragging — no DOM removal during drag
+  if (!dragging){
+    for (const [key, cell] of cells){
+      if (!keep.has(key) && cell !== expanded){
+        cell.el.remove();
+        cells.delete(key);
+      }
     }
   }
 }
