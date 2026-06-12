@@ -264,7 +264,7 @@
 
   /* ---- logo, top left ---- */
   .logo{
-    position:fixed; top:calc(var(--rim) + 31px); left:calc(var(--rim) + 64px); z-index:1300;
+    position:fixed; top:calc(var(--rim) + 31px); left:calc(var(--rim) + 22px); z-index:1300;
     transform:translateY(-50%);
     font:700 14px/1 "Arial Narrow","Impact",ui-sans-serif,sans-serif;
     letter-spacing:0.22em;
@@ -277,9 +277,9 @@
   }
   body.focus .logo{ opacity:0; }
 
-  /* ---- chemical bottle button, top left ---- */
+  /* ---- chemical bottle button, top right (next to globe) ---- */
   .chembtn-wrap{
-    position:fixed; top:calc(var(--rim) + 14px); left:calc(var(--rim) + 22px); z-index:1300;
+    position:fixed; top:calc(var(--rim) + 14px); right:calc(var(--rim) + 64px); z-index:1300;
     transition:opacity 0.4s ease;
   }
   body.focus .chembtn-wrap{ opacity:0; pointer-events:none; }
@@ -312,8 +312,8 @@
   }
   .chembtn.shaking{ animation:bottleShake 0.7s ease-in-out; }
   .chemtip{
-    position:absolute; top:calc(100% + 8px); left:50%;
-    transform:translateX(-50%);
+    position:absolute; top:calc(100% + 8px); right:0;
+    transform:none;
     white-space:nowrap; padding:5px 9px;
     background:rgba(16,12,8,0.96);
     border:1px solid rgba(220,100,20,0.30);
