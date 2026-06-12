@@ -169,7 +169,6 @@
   }
   .viewport.dragging{ cursor:grabbing; }
   .world{ position:absolute; top:0; left:0; will-change:transform; }
-  body.focus .viewport{ z-index:1001; }
 
   /* a print in the developer tray */
   .photo{
@@ -836,22 +835,38 @@ function onClick(cell){
 
 function develop(cell){
   expanded = cell;
+  velX = 0; velY = 0;  // kill any momentum
   const cellH = cell.cellH || PH;
   const r = cell.el.getBoundingClientRect();
   const cx = r.left + r.width/2, cy = r.top + r.height/2;
   const s = Math.min(H*0.86 / cellH, W*0.92 / PW);
-  const dx = W/2 - cx, dy = H/2 - cy;
+
+  // Save state so collapse can restore
+  cell._origCssText = cell.el.style.cssText;
+  cell._origLeft    = cell.el.style.left;
+  cell._origTop     = cell.el.style.top;
+  cell._nextSib     = cell.el.nextSibling;
+
+  // Lift out of world/viewport stacking contexts into <body>
+  // position:fixed + screen coords = same visual position, transform cleared
+  cell.el.style.position  = 'fixed';
+  cell.el.style.left      = r.left + 'px';
+  cell.el.style.top       = r.top  + 'px';
+  cell.el.style.zIndex    = '1100';
+  cell.el.style.transform = 'none';
+  document.body.appendChild(cell.el);
 
   cell.el.classList.add('dev');
   void cell.el.offsetWidth;
-  cell.el.style.transform = 'translate('+dx+'px,'+dy+'px) scale('+s+') rotate(0deg)';
+
+  // Animate to centre
+  const tx = W/2 - cx, ty = H/2 - cy;
+  cell.el.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+s+') rotate(0deg)';
+
   document.body.classList.add('focus');
   backdrop.classList.add('show');
-
-  // the water it left behind, disturbed
   spawnRipple(cx, cy);
 
-  // drips running off the bottom edge once it's up
   if (!reduce){
     const bottomY = H/2 + (cellH*s)/2;
     const halfW = (PW*s)/2;
@@ -889,9 +904,28 @@ function collapse(){
   settling = true;
   document.body.classList.remove('focus');
   backdrop.classList.remove('show');
+
+  const cellH = cell.cellH || PH;
+  const s = Math.min(H*0.86 / cellH, W*0.92 / PW);
+  const origLeft = parseFloat(cell._origLeft) || 0;
+  const origTop  = parseFloat(cell._origTop)  || 0;
+
+  // Move back into world, restore original inline styles
+  world.insertBefore(cell.el, cell._nextSib || null);
+  cell.el.style.cssText = cell._origCssText;
+
+  // Compute a transform so it still APPEARS at screen-centre from world-space
+  const tx = W/2 + camX - origLeft - PW/2;
+  const ty = H/2 + camY - origTop  - cellH/2;
+  cell.el.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+s+') rotate(0deg)';
+
+  void cell.el.offsetWidth;
+
+  // Now transition back to its floating position
   cell.el.classList.add('returning');
   cell.el.classList.remove('dev');
   cell.el.style.transform = driftTransform(cell);
+
   let landed = false;
   const done = () => {
     if (landed) return;
@@ -900,10 +934,10 @@ function collapse(){
     settling = false;
     cell.el.removeEventListener('transitionend', done);
     const rr = cell.el.getBoundingClientRect();
-    spawnRipple(rr.left + rr.width/2, rr.top + rr.height/2);   // it lands back in the water
+    spawnRipple(rr.left + rr.width/2, rr.top + rr.height/2);
   };
   cell.el.addEventListener('transitionend', done);
-  setTimeout(done, 900);   // safety net if transitionend never fires
+  setTimeout(done, 900);
 }
 
 backdrop.addEventListener('pointerdown', collapse);
