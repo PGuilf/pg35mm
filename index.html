@@ -334,7 +334,7 @@
     transition:background 0.25s ease;
   }
   .chemflash.active{ background:rgba(2,1,0,0.78); transition:background 0.25s ease; }
-  .chemflash.fading{ background:rgba(2,1,0,0); transition:background 3.5s ease; }
+  .chemflash.fading{ background:rgba(2,1,0,0); transition:background 6s ease; }
 
   /* ---- filters, top right ---- */
   .filters{
@@ -1053,14 +1053,25 @@ chemBtn.addEventListener('click', () => {
   chemBtn.classList.add('shaking');
   chemBtn.addEventListener('animationend', () => chemBtn.classList.remove('shaking'), { once: true });
 
-  // flood in dark, then slowly fade back
+  // flood in dark
   chemFlash.classList.remove('fading');
   chemFlash.classList.add('active');
+
+  // reshuffle photos while hidden
+  setTimeout(() => {
+    for (let i = PHOTOS.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [PHOTOS[i], PHOTOS[j]] = [PHOTOS[j], PHOTOS[i]];
+    }
+    rebuild();
+  }, 400);
+
+  // slowly fade back
   setTimeout(() => {
     chemFlash.classList.remove('active');
     chemFlash.classList.add('fading');
-    setTimeout(() => { chemFlash.classList.remove('fading'); chemBusy = false; }, 3600);
-  }, 600);
+    setTimeout(() => { chemFlash.classList.remove('fading'); chemBusy = false; }, 6000);
+  }, 1200);
 });
 
 globeBtn.addEventListener('click', e => {
