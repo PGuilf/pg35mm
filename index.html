@@ -265,7 +265,7 @@
 
   /* ---- logo, top left ---- */
   .logo{
-    position:fixed; top:calc(var(--rim) + 31px); left:calc(var(--rim) + 22px); z-index:1300;
+    position:fixed; top:calc(var(--rim) + 31px); left:calc(var(--rim) + 64px); z-index:1300;
     transform:translateY(-50%);
     font:700 14px/1 "Arial Narrow","Impact",ui-sans-serif,sans-serif;
     letter-spacing:0.22em;
@@ -277,6 +277,65 @@
     user-select:none; -webkit-user-select:none;
   }
   body.focus .logo{ opacity:0; }
+
+  /* ---- chemical bottle button, top left ---- */
+  .chembtn-wrap{
+    position:fixed; top:calc(var(--rim) + 14px); left:calc(var(--rim) + 22px); z-index:1300;
+    transition:opacity 0.4s ease;
+  }
+  body.focus .chembtn-wrap{ opacity:0; pointer-events:none; }
+  .chembtn{
+    width:34px; height:34px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(10,12,18,0.55);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:50%;
+    color:rgba(220,215,205,0.75);
+    cursor:pointer;
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    transition:color 0.25s ease, border-color 0.25s ease;
+    transform-origin:50% 80%;
+  }
+  .chembtn:hover{ color:#efe9dc; border-color:rgba(255,255,255,0.28); }
+  .chembtn svg{ width:16px; height:16px; display:block; }
+  @keyframes bottleShake{
+    0%  { transform:rotate(0deg) translateY(0); }
+    10% { transform:rotate(-22deg) translateY(-2px); }
+    20% { transform:rotate(22deg) translateY(-3px); }
+    30% { transform:rotate(-20deg) translateY(-2px); }
+    40% { transform:rotate(20deg) translateY(-3px); }
+    50% { transform:rotate(-16deg) translateY(-1px); }
+    60% { transform:rotate(16deg) translateY(-2px); }
+    70% { transform:rotate(-8deg) translateY(-1px); }
+    80% { transform:rotate(8deg) translateY(-1px); }
+    90% { transform:rotate(-3deg) translateY(0); }
+    100%{ transform:rotate(0deg) translateY(0); }
+  }
+  .chembtn.shaking{ animation:bottleShake 0.7s ease-in-out; }
+  .chemtip{
+    position:absolute; top:calc(100% + 8px); left:50%;
+    transform:translateX(-50%);
+    white-space:nowrap; padding:5px 9px;
+    background:rgba(16,12,8,0.96);
+    border:1px solid rgba(220,100,20,0.30);
+    border-radius:3px;
+    font:700 8px/1 "Arial Narrow","Impact",ui-sans-serif,sans-serif;
+    letter-spacing:0.18em; text-transform:uppercase;
+    color:rgb(230,165,80);
+    opacity:0; pointer-events:none;
+    transition:opacity 0.2s ease;
+  }
+  .chembtn-wrap:hover .chemtip{ opacity:1; }
+
+  /* ---- chemical flash overlay ---- */
+  .chemflash{
+    position:fixed; inset:0; z-index:800;
+    background:rgba(2,1,0,0);
+    pointer-events:none;
+    transition:background 0.25s ease;
+  }
+  .chemflash.active{ background:rgba(2,1,0,0.78); transition:background 0.25s ease; }
+  .chemflash.fading{ background:rgba(2,1,0,0); transition:background 3.5s ease; }
 
   /* ---- filters, top right ---- */
   .filters{
@@ -405,6 +464,18 @@
   </div>
 
   <div class="logo">PG35MM</div>
+
+  <div class="chembtn-wrap">
+    <button class="chembtn" id="chemBtn" aria-label="Add chemical">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 3h6"/>
+        <path d="M10 3v4.5L6.5 13C5.5 15 5 16.5 5 18a7 7 0 0014 0c0-1.5-.5-3-1.5-5L14 7.5V3"/>
+        <path d="M8 17c0-1.5 4-1.5 4 0s4 1.5 4 0" opacity="0.5"/>
+      </svg>
+    </button>
+    <div class="chemtip">Add more chemical</div>
+  </div>
+  <div class="chemflash" id="chemFlash"></div>
 
   <div class="filters">
     <button class="fbtn" id="globeBtn" aria-label="Filter by country" style="position:relative">
@@ -934,6 +1005,29 @@ function renderMenu(){
   });
 }
 renderMenu();
+
+/* ---- chemical bottle interaction ---- */
+const chemBtn   = document.getElementById('chemBtn');
+const chemFlash = document.getElementById('chemFlash');
+let chemBusy = false;
+
+chemBtn.addEventListener('click', () => {
+  if (chemBusy) return;
+  chemBusy = true;
+
+  // shake the bottle
+  chemBtn.classList.add('shaking');
+  chemBtn.addEventListener('animationend', () => chemBtn.classList.remove('shaking'), { once: true });
+
+  // flood in dark, then slowly fade back
+  chemFlash.classList.remove('fading');
+  chemFlash.classList.add('active');
+  setTimeout(() => {
+    chemFlash.classList.remove('active');
+    chemFlash.classList.add('fading');
+    setTimeout(() => { chemFlash.classList.remove('fading'); chemBusy = false; }, 3600);
+  }, 600);
+});
 
 globeBtn.addEventListener('click', e => {
   e.stopPropagation();
