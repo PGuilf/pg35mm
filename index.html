@@ -168,8 +168,8 @@
     touch-action:none;
   }
   .viewport.dragging{ cursor:grabbing; }
-  .world{ position:absolute; top:0; left:0; will-change:transform; z-index:1; }
-  body.focus .world{ z-index:1001; }
+  .world{ position:absolute; top:0; left:0; will-change:transform; }
+  body.focus .viewport{ z-index:1001; }
 
   /* a print in the developer tray */
   .photo{
@@ -380,7 +380,8 @@
   <div class="caustics c"></div>
   <div class="depthhaze"></div>
   <div class="sheen"></div>
-  <div class="viewport" id="viewport"><div class="world" id="world"></div><div class="backdrop" id="backdrop"></div></div>
+  <div class="viewport" id="viewport"><div class="world" id="world"></div></div>
+  <div class="backdrop" id="backdrop"></div>
 
   <!-- animated water surface texture (sits above photos, below tray) -->
   <svg id="wsurf" xmlns="http://www.w3.org/2000/svg">
