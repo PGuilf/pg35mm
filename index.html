@@ -721,6 +721,7 @@ function makeCell(c, r){
 
   const img = el.firstElementChild.firstElementChild;
   img.decoding = 'async';
+  img.loading = 'lazy';
   img.onerror = () => {
     const hue = (idx*53)%360;
     el.style.background =
@@ -741,8 +742,7 @@ function ensureCells(){
   if (dragging && (++ensureFrame % 6 !== 0)) return;
   if (Math.abs(camX - lastEnsureX) < TW * 0.4 && Math.abs(camY - lastEnsureY) < TH * 0.4) return;
   lastEnsureX = camX; lastEnsureY = camY;
-  // larger pre-buffer so cells exist before the camera reaches them
-  const buf = 2;
+  const buf = 1;
   const c0 = Math.floor((camX - PW) / TW) - buf, c1 = Math.floor((camX + W) / TW) + buf;
   const r0 = Math.floor((camY - PH) / TH) - buf, r1 = Math.floor((camY + H) / TH) + buf;
   const keep = new Set();
@@ -827,9 +827,6 @@ function tick(now){
   if (!reduce && !dragging){
     for (const cell of cells.values()){
       if (cell === expanded || cell.returning) continue;
-      // skip cells outside the visible area (+ one cell margin)
-      const sx = cell.wx - camX, sy = cell.wy - camY;
-      if (sx < -PW*1.5 || sx > W+PW*1.5 || sy < -PH*1.5 || sy > H+PH*1.5) continue;
       cell.el.style.transform = driftTransform(cell);
     }
   }
